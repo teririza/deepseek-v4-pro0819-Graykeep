@@ -44,8 +44,8 @@ The serving-side grayscale router decides per-session (by identity / seed, with 
 ## 安装 / Install（零依赖，clone 即用 / zero-dependency, clone and run）
 
 ```bash
-git clone <repo>
-cd dspro0819Graykeep
+git clone https://github.com/teririza/deepseek-v4-pro0819-Graykeep.git
+cd deepseek-v4-pro0819-Graykeep
 ```
 
 **不需要 `npm install`** —— 运行时零依赖，只要 Node ≥ 18。
@@ -56,9 +56,11 @@ cd dspro0819Graykeep
 .\graykeep.ps1 pin
 # macOS / Linux
 ./_graykeep.sh pin
-# 或者全局命令 / or a global command (optional)
-npm link
+# 或者装成全局命令后直接敲 graykeep（可选）
+npm link      # -> 之后可全局使用：graykeep pin
 ```
+
+> 下文 `graykeep` 一律表示 "启动器或全局命令"：Windows 用 `.\graykeep.ps1`，macOS/Linux 用 `./_graykeep.sh`，或 `npm link` 后的全局 `graykeep`。
 
 ## 一键固化 / One-command pin
 
@@ -66,12 +68,17 @@ npm link
 graykeep pin
 ```
 
-按提示粘贴你的会话种子（session-id），其余全部自动：
-Paste your session seed (session-id) when prompted; everything else is automatic:
+按提示粘贴你的会话种子（session-id），其余全部自动；等价命令行写法：`graykeep pin --session-id session-<uuid>`。
+Paste your session seed (session-id) when prompted; everything else is automatic; the equivalent one-liner is `graykeep pin --session-id session-<uuid>`.
 
 - 定位 `settings.yaml`（`DSH_HOME` → `~/.dsh`）/ locate `settings.yaml`
 - 自动读你的 `user-id`（`.anonymous-user-id`）/ auto-read your `user-id`
 - 备份 → 插入 provider 块 → 文本级 round-trip 校验 → 落盘 → 打印结果 / backup → insert provider block → round-trip verify → write → report
+
+### 固化之后：在 DSH 里启用并验证 / After pinning: enable & verify in DSH
+1. 在 DSH **新建一个会话**，供应商/模型选 **`Test DeepSeek` + `deepseek-v4-pro`**（或 `deepseek-v4-flash`）。/ Create a **new conversation** in DSH and pick provider **`Test DeepSeek`** with model `deepseek-v4-pro` (or `flash`).
+2. 发一条长任务，核对"满血链/灰测"三铁证：成串成串的思考输出、段落尾部停顿、V4-Pro 约 25 tok/s。/ Send a long task and check the three "full-chain" signs: notably long chained reasoning, pauses at paragraph boundaries, and ~25 tok/s throughput on V4-Pro.
+3. 该供应商**同时只跑一个会话**，避免 KV-cache 串；换任务请在当前会话内继续。/ Run **one** session on this provider at a time to avoid KV-cache cross-talk; keep working in the same conversation.
 
 ### 查看 / 撤销 / 回滚 · Inspect / undo / rollback
 
