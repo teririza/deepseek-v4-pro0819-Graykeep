@@ -17,36 +17,33 @@ x-deepseek-harness-session-id: session-<uuid>     // 每个会话一个
 
 灰度服务端按身份/种子加权抽样决定该会话进入灰测集群，并在会话内保持粘性。**如果你某天"抽中"了一条灰测会话**，把它的 `session-id`（连同你自己的 `user-id`）固化成一个固定携带这两个头的供应商，后续请求就能稳定沿用该灰测身份——这就是 `graypin` 做的事。它只改你 `settings.yaml` 里的一个配置块，不碰别的东西。
 
-## 安装
+## 安装（零依赖，clone 即用）
 
 ```bash
 git clone <repo>
 cd dspro0819Graykeep
-npm install
-npm link          # 可选：获得全局 graykeep 命令
 ```
 
-要求 Node ≥ 18。
-
-## 用法
-
-### 固化（pin）
-先获取你自己的值：
-- `user-id`：`~/.dsh/.anonymous-user-id`（命令会自动读取）
-- `session-id`：你那条灰测会话的 id（格式 `session-<uuid>`，即会话目录名 / 抓包得到的 `x-deepseek-harness-session-id` 值）
+**不需要 `npm install`**——运行时零依赖，只要 Node ≥ 18。Windows / macOS / Linux 三个启动入口任选：
 
 ```bash
-# 自动读 .anonymous-user-id，只填 session-id
-graykeep pin --session-id session-2213a0f3-5f34-4b65-b83e-89878fe65361
-
-# 先看改动，不落盘
-graykeep pin --session-id session-... --dry-run
-
-# 自定义供应商名 / 模型清单
-graykeep pin --session-id session-... --provider deepseek --models deepseek-v4-pro,deepseek-v4-flash
+# Windows PowerShell
+.\graykeep.ps1 pin
+# macOS / Linux
+./_graykeep.sh pin
+# 或全局命令（可选）
+npm link
 ```
 
-写入前会自动：**备份 → 插入/更新 provider 块 → 重新解析 YAML 校验头值 → 才落盘**。
+## 一键固化（clone 后最常用路径）
+
+```bash
+graykeep pin
+```
+按提示**粘贴你的会话种子（session-id）**，其余全部自动：
+- 定位 `settings.yaml`（`DSH_HOME` → `~/.dsh`）
+- 自动读你的 `user-id`（`.anonymous-user-id`）
+- 备份 → 插入 provider 块 → 文本级 round-trip 校验 → 落盘 → 打印结果
 
 ### 查看 / 撤销 / 回滚
 
@@ -59,9 +56,9 @@ graykeep rollback                # 用最近一次备份还原 settings.yaml
 ## 它是怎么做到安全的
 
 - **只动一个 provider 块**：在 `llm-pi-ai.providers` 下新增/更新，其余配置原样保留，不重排整个文件。
-- **写前校验**：每次写入都先 `yaml.parse` 重解析，校验 provider 存在且头的 `session-id` 完整存活，否则拒绝写入。
+- **文本级 round-trip 校验（零依赖也能保证）**：每次写入前先把注入的块再摘掉，断言能**逐字节还原原文件**——逻辑上等价于"写错了就拒绝"，且不依赖任何 YAML 第三方库。
 - **处处可回滚**：每次写前自动生成 `settings.yaml.graykeep-<provider>-<时间>.bak`。
-- **本地纯配置**：不联网、不下载、不执行第三方代码，唯一依赖是 `yaml` 解析库。
+- **本地纯配置**：不联网、不下载、不执行第三方代码、不安装依赖。
 
 ## 你该知道的边界 / 风险（务必读）
 
@@ -74,10 +71,12 @@ graykeep rollback                # 用最近一次备份还原 settings.yaml
 
 ```text
 dspro0819Graykeep/
-  bin/graykeep.js        # CLI
-  src/pin/block.js       # provider 块构造 + id 校验
-  src/pin/yamlops.js     # 备份 / 插入 / 撤销 / 回滚 / 状态
-  tests/pin.test.js      # node --test 单测（无网络）
+  bin/graykeep.js        # CLI（pin / unpin / status / rollback，交互式会话种子输入）
+  graykeep.ps1           # Windows 零依赖启动器（.\graykeep.ps1 pin）
+  _graykeep.sh           # macOS / Linux 零依赖启动器（./_graykeep.sh pin）
+  src/pin/block.js       # provider 块构造 + id 校验（纯字符串，无 YAML 库）
+  src/pin/yamlops.js     # 备份 / 插入 / 撤销 / 回滚 / 状态 + round-trip 校验
+  tests/pin.test.js      # node --test 单测（零依赖，无网络）
   package.json LICENSE README.md
 ```
 

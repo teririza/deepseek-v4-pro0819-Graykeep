@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { promises as fs } from 'node:fs';
+import { createInterface } from 'node:readline';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -13,17 +14,25 @@ import { validateIdentifiers } from '../src/pin/block.js';
 const usage = `dsh-graykeep — pin/unpin/status/rollback a gray-test provider in DSH settings.yaml
 
 USAGE
-  graykeep pin    --session-id <session-...> [--user-id <uuid>] [--provider <name>]
-                  [--settings <path>] [--dry-run] [--no-backup] [--models a,b]
+  graykeep pin [--session-id <session-...>] [--user-id <uuid>] [--provider <name>]
+               [--settings <path>] [--dry-run] [--no-backup] [--models a,b]
   graykeep unpin  [--provider <name>] [--settings <path>] [--dry-run] [--no-backup]
   graykeep status [--provider <name>] [--settings <path>]
   graykeep rollback [--provider <name>] [--settings <path>]
   graykeep help
 
+One-click flow (recommended):
+  1. install nothing — zero runtime dependencies, Node >= 18 only
+  2. run:   graykeep pin
+  3. paste your gray-test session id when prompted -> it does everything:
+     locate settings.yaml (DSH_HOME -> ~/.dsh), auto-read your user-id from
+     .anonymous-user-id, backup, insert/validate, print result.
+
 DEFAULTS
   --settings   $DSH_HOME/settings.yaml  (fallback ~/.dsh/settings.yaml)
   --provider   deepseek
-  --user-id    auto-read from <settings-dir>/.anonymous-user-id if present
+  --user-id    auto-read from <settings-dir>/.anonymous-user-id, then DSH_HOME,
+               then ~/.dsh/, in order
   --models     deepseek-v4-pro,deepseek-v4-flash
 
 NOTES
@@ -59,15 +68,31 @@ function defaultSettingsPath() {
     : path.join(os.homedir(), '.dsh', 'settings.yaml');
 }
 
-async function readOwnUserId(settings) {
-  try {
-    const dir = path.dirname(settings);
-    const f = path.join(dir, '.anonymous-user-id');
-    const v = (await fs.readFile(f, 'utf8')).trim();
-    return /^[0-9a-fA-F-]{36}$/.test(v) ? v : undefined;
-  } catch {
-    return undefined;
+async function findOwnUserId(settings) {
+  const candidates = [
+    path.join(path.dirname(settings), '.anonymous-user-id'),
+    process.env.DSH_HOME ? path.join(process.env.DSH_HOME, '.anonymous-user-id') : null,
+    path.join(os.homedir(), '.dsh', '.anonymous-user-id'),
+  ].filter(Boolean);
+  for (const f of candidates) {
+    try {
+      const v = (await fs.readFile(f, 'utf8')).trim();
+      if (/^[0-9a-fA-F-]{36}$/.test(v)) return v;
+    } catch {
+      /* try next */
+    }
   }
+  return undefined;
+}
+
+function ask(mask) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(mask, (ans) => {
+      rl.close();
+      resolve(ans.trim());
+    });
+  });
 }
 
 async function main() {
@@ -79,12 +104,16 @@ async function main() {
 
   switch (opts.command) {
     case 'pin': {
-      if (!opts.sessionId) throw new Error('pin requires --session-id');
-      const userId = opts.userId ?? (await readOwnUserId(settings));
+      let sessionId = opts.sessionId;
+      if (!sessionId) {
+        sessionId = await ask('gray-test session-id (形式 session-<uuid>，来自你已抽中的灰测会话): ');
+      }
+      if (!sessionId) throw new Error('pin requires a session-id');
+      const userId = opts.userId ?? (await findOwnUserId(settings));
       if (!userId) throw new Error('pin requires --user-id (or a local .anonymous-user-id next to settings.yaml)');
-      for (const w of validateIdentifiers({ sessionId: opts.sessionId, userId })) console.warn(`! ${w}`);
+      for (const w of validateIdentifiers({ sessionId, userId })) console.warn(`! ${w}`);
       const res = await pinProvider(settings, {
-        sessionId: opts.sessionId,
+        sessionId,
         userId,
         provider,
         displayName: opts.displayName,
@@ -96,6 +125,13 @@ async function main() {
       if (res.dryRun) return console.log(`[dry-run] provider "${provider}" would be ${res.changed}`);
       console.log(`[ok] provider "${provider}" ${res.changed} -> ${settings}`);
       if (res.backup) console.log(`[backup] ${res.backup}`);
+      const s = await status(settings, provider);
+      if (s.exists) {
+        console.log(`[status] provider "${provider}" (${s.displayName})`);
+        console.log(`  models  : ${(s.models ?? []).join(', ')}`);
+        console.log(`  user-id : ${s.userMasked}`);
+        console.log(`  session : ${s.sessionMasked}${s.sessionMatches ? '' : ' (! check shape)'}`);
+      }
       return;
     }
     case 'unpin': {

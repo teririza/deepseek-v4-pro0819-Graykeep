@@ -1,8 +1,8 @@
 /**
- * Builds the provider node injected into DSH settings.yaml.
- * This is plain config — it does NOT download models or touch the network.
+ * Builds the provider block text injected into DSH settings.yaml (indent 4).
+ * Zero-dependency: pure string generation, no YAML library needed.
  */
-export function buildProviderBlock({
+export function buildProviderText({
   sessionId,
   userId,
   provider = 'deepseek',
@@ -11,22 +11,28 @@ export function buildProviderBlock({
   apiKeyEnv = 'DEEPSEEK_API_KEY',
   models = ['deepseek-v4-pro', 'deepseek-v4-flash'],
 }) {
-  return {
-    [provider]: {
-      apiKeyEnv,
-      displayName,
-      baseURL,
-      headers: {
-        'x-deepseek-harness-user-id': String(userId),
-        'x-deepseek-harness-session-id': String(sessionId),
-      },
-      models: models.map((id) => ({
-        id,
-        reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' },
-        compat: { thinkingFormat: 'deepseek', supportsReasoningEffort: true },
-      })),
-    },
-  };
+  const lines = [];
+  const push = (ind, l) => lines.push(' '.repeat(ind) + l);
+  push(4, `${provider}:`);
+  push(6, `apiKeyEnv: ${apiKeyEnv}`);
+  push(6, `displayName: "${displayName}"`);
+  push(6, `baseURL: ${baseURL}`);
+  push(6, 'headers:');
+  push(8, `"x-deepseek-harness-user-id": "${String(userId)}"`);
+  push(8, `"x-deepseek-harness-session-id": "${String(sessionId)}"`);
+  push(6, 'models:');
+  for (const id of models) {
+    push(8, `- id: ${id}`);
+    push(10, 'reasoningEfforts:');
+    push(12, 'off: null');
+    push(12, 'low: low');
+    push(12, 'high: high');
+    push(12, 'max: max');
+    push(10, 'compat:');
+    push(12, 'thinkingFormat: deepseek');
+    push(12, 'supportsReasoningEffort: true');
+  }
+  return lines.join('\n');
 }
 
 /** Validate identifier shape; return warnings (not fatal). */
@@ -38,7 +44,7 @@ export function validateIdentifiers({ sessionId, userId }) {
     );
   }
   if (!/^[0-9a-fA-F-]{36}$/.test(String(userId))) {
-    warnings.push(`user-id does not look like a UUID. Double-check it is your own .anonymous-user-id.`);
+    warnings.push(`user-id does not look like a UUID. Double-check it is your own .anonymous-user-id`);
   }
   return warnings;
 }
