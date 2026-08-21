@@ -1,0 +1,27 @@
+{
+  "name": "dspro0819-graykeep",
+  "version": "0.1.0",
+  "description": "DSH gray-test session preservation toolkit. graypin: pin your own gray-test identity into a DSH provider configuration with backup / rollback / diff-safe YAML edits.",
+  "type": "module",
+  "bin": {
+    "graykeep": "bin/graykeep.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test tests/pin.test.js"
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "gray-test",
+    "canary",
+    "config"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "yaml": "^2.4.5"
+  }
+}
